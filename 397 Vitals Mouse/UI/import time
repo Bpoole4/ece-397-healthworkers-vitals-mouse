@@ -1,0 +1,18 @@
+import time
+import windowsos thing
+
+if todays file doesnt exist
+	create todays file
+
+open todays file
+write "mm/dd/yyyy, hour, min, hr, o2, confidence
+
+close file
+
+
+
+def data_get(time, date, range)
+	format data for file name
+	pull data from time to time+range
+	create long piece of data
+	return data

@@ -15,6 +15,7 @@ import pyqtgraph as pg
 from random import randint
 from data_generator import singleGenerate
 import csv 
+import serial_connection
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -149,15 +150,20 @@ class Ui_MainWindow(object):
 
     def update_plot_data(self):
 
+        
+
         self.timeLive = self.timeLive[1:]  # Remove the first y element.
         self.timeLive.append(self.timeLive[-1] + 1)  # Add a new value 1 higher than the last.
 
+        serialData = serial_connection.getSerial()
+        print(serialData)
+
         self.liveHR = self.liveHR[1:]  # Remove the first 
-        self.liveHR.append(singleGenerate(80,5))
+        self.liveHR.append(serialData[0])
 
 
         self.liveO2 = self.liveO2[1:]  # Remove the first 
-        self.liveO2.append(singleGenerate(99,1))
+        self.liveO2.append(serialData[1])
 
         
         self.data_line_1.setData(self.timeLive, self.liveHR)  # Update the data.
@@ -181,7 +187,7 @@ class Ui_MainWindow(object):
         self.data_line_1 = self.graphWidgetLive.plot(self.timeLive, self.liveHR,pen = pen)
         self.data_line_2 = self.graphWidgetLive.plot(self.timeLive, self.liveO2,pen = pen2)
         self.timer = QtCore.QTimer()
-        self.timer.setInterval(500)
+        self.timer.setInterval(250)
         self.timer.timeout.connect(self.update_plot_data)
         self.timer.start()
 
