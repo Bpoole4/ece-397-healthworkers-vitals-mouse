@@ -1,7 +1,7 @@
 import winrt.windows.ui.notifications as notifications
 import winrt.windows.data.xml.dom as dom
 import sys
-import datetime
+
 
 def sendNotifH():
     #create notifier. find app name by using sys
@@ -32,7 +32,7 @@ def sendNotifH():
 def sendNotifO():
     #create notifier. find app name by using sys
 
-    print(start)
+   
     nManager = notifications.ToastNotificationManager
 
     notifier = nManager.create_toast_notifier(sys.executable);

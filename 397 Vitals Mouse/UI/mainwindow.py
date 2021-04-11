@@ -11,7 +11,9 @@
 
 
 from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5.QtCore import QDate, QDateTime
 from PyQt5.QtWidgets import QMessageBox
+from PyQt5.QtWidgets import QApplication, QWidget, QInputDialog, QLineEdit, QFileDialog, QDateEdit, QDialog
 from pyqtgraph import PlotWidget
 import pyqtgraph as pg
 from random import randint
@@ -21,9 +23,11 @@ import serial_connection
 import winrt.windows.ui.notifications as notifications
 import winrt.windows.data.xml.dom as dom
 import windowsalert
+import datetime
+import datasystem
+import os
 
-
-class Ui_MainWindow(object):
+class Ui_MainWindow(QtWidgets.QMainWindow):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
         MainWindow.setFixedSize(800, 618)
@@ -66,6 +70,10 @@ class Ui_MainWindow(object):
         self.pushGraph.setGeometry(QtCore.QRect(200, 550, 75, 23))
         self.pushGraph.setObjectName("pushGraph")
 
+        self.pushGraph2 = QtWidgets.QPushButton(self.centralwidget)
+        self.pushGraph2.setGeometry(QtCore.QRect(300, 550, 75, 23))
+        self.pushGraph2.setObjectName("pushGraph2")
+
         self.liveDisplay_1 = QtWidgets.QLabel(self.centralwidget)
         self.liveDisplay_1.setGeometry(QtCore.QRect(710, 20, 61, 61))
         self.liveDisplay_1.setObjectName("liveDisplay_1")
@@ -94,27 +102,20 @@ class Ui_MainWindow(object):
         self.label_3 = QtWidgets.QLabel(self.groupBox)
         self.label_3.setGeometry(QtCore.QRect(210, 110, 151, 31))
         self.label_3.setObjectName("label_3")
-        self.dateTimeEdit = QtWidgets.QDateTimeEdit(self.centralwidget)
-        self.dateTimeEdit.setGeometry(QtCore.QRect(170, 490, 194, 22))
+
+        self.dateTimeEdit = QtWidgets.QDateEdit(self.centralwidget)
+        self.dateTimeEdit.setGeometry(QtCore.QRect(190, 490, 194, 22))
         self.dateTimeEdit.setObjectName("dateTimeEdit")
-        self.label_4 = QtWidgets.QLabel(self.centralwidget)
-        self.label_4.setGeometry(QtCore.QRect(620, 460, 61, 16))
-        self.label_4.setObjectName("label_4")
-        self.label_5 = QtWidgets.QLabel(self.centralwidget)
-        self.label_5.setGeometry(QtCore.QRect(720, 460, 47, 13))
-        self.label_5.setObjectName("label_5")
+        self.dateTimeEdit.setDate(QDate.currentDate())
+
+        
         self.label_6 = QtWidgets.QLabel(self.centralwidget)
         self.label_6.setGeometry(QtCore.QRect(40, 20, 251, 41))
         font = QtGui.QFont()
         font.setPointSize(19)
         self.label_6.setFont(font)
         self.label_6.setObjectName("label_6")
-        self.textBrowser_3 = QtWidgets.QTextBrowser(self.centralwidget)
-        self.textBrowser_3.setGeometry(QtCore.QRect(630, 490, 41, 41))
-        self.textBrowser_3.setObjectName("textBrowser_3")
-        self.textBrowser_4 = QtWidgets.QTextBrowser(self.centralwidget)
-        self.textBrowser_4.setGeometry(QtCore.QRect(710, 490, 41, 41))
-        self.textBrowser_4.setObjectName("textBrowser_4")
+        
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(MainWindow)
         self.menubar.setGeometry(QtCore.QRect(0, 0, 800, 21))
@@ -137,14 +138,17 @@ class Ui_MainWindow(object):
         self.graphWidgetMain = PlotWidget(self.centralwidget)
         self.graphWidgetMain.setGeometry(QtCore.QRect(150, 140, 600, 275))
         self.graphWidgetMain.setObjectName("graphWidgetLive")
+        self.graphWidgetMain.setMouseEnabled(x=True, y=False)
+        self.graphWidgetMain.setYRange(50, 150, padding=0)
+        self.graphWidgetMain.getPlotItem().hideAxis('bottom')
 
-        self.textBrowser_4.setText('10')
+        
 
         self.graphWidgetLive.setBackground('w')
 
 
         pen = pg.mkPen(color = (255, 0 ,0), width = 2)
-        pen2 = pg.mkPen(color = (0, 255 ,0), width = 2)
+        pen2 = pg.mkPen(color = (0, 0 ,255), width = 2)
         time = [1,2,3,4]
         heartRate = [90,87,88,85]
         oxygenLevel = [100,99,99,98]
@@ -154,7 +158,7 @@ class Ui_MainWindow(object):
 
 
         self.notifThresh = [120,95]
-
+        self.notifCooldown = 25
 
         
         
@@ -163,8 +167,10 @@ class Ui_MainWindow(object):
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
+        self.pushAnalytics.clicked.connect(self.show_Analysis)
 
-        self.pushExport.clicked.connect(self.show_popExport)
+
+        self.pushExport.clicked.connect(self.show_export)
 
         self.pushOptions.clicked.connect(self.show_popOptions)
 
@@ -172,7 +178,8 @@ class Ui_MainWindow(object):
         self.pushLive.setCheckable(True)
         self.pushLive.clicked.connect(self.show_graphLive)
 
-        self.pushGraph.clicked.connect(self.show_graphMain)
+        self.pushGraph.clicked.connect(self.fromFile)
+        self.pushGraph2.clicked.connect(self.fromDate)
 
 
 
@@ -183,7 +190,9 @@ class Ui_MainWindow(object):
         self.timeLive = self.timeLive[1:]  # Remove the first y element.
         self.timeLive.append(self.timeLive[-1] + 1)  # Add a new value 1 higher than the last.
 
-        serialData = serial_connection.getSerial()
+        #serialData = serial_connection.getSerial()
+
+        serialData = (singleGenerate(100,1), singleGenerate(99,1))
         print(serialData)
 
          
@@ -198,12 +207,22 @@ class Ui_MainWindow(object):
             self.liveO2.append(serialData[1])
             self.liveDisplay_1.setText(str(self.liveO2[99]))
 
+        if not (serialData[0] == 0 & serialData[1] == 0):
+            datasystem.data_store(serialData[0], serialData[1])
 
-        if self.notifThresh[0] < serialData[0]:
-            windowsalert.sendNotifH()
+        a = datetime.datetime.now()
+        b = self.startTime
+        c = a - b
+        print(c.total_seconds())
+        if c.total_seconds() > self.notifCooldown:
+            if self.notifThresh[0] < serialData[0]:
+                windowsalert.sendNotifH()
+                self.startTime = datetime.datetime.now()
 
-        if self.notifThresh[1] > serialData[1] & serialData[1] != 0:
-            windowsalert.sendNotifO()
+            if self.notifThresh[1] > serialData[1] & serialData[1] != 0:
+                windowsalert.sendNotifO()
+                self.startTime = datetime.datetime.now()
+            
 
 
         
@@ -213,26 +232,24 @@ class Ui_MainWindow(object):
         
         
 
-        
-        
-        
-        
+    def show_export(self):
+        options = QFileDialog.Options() | QFileDialog.DontUseNativeDialog
+        fileName = QFileDialog.getSaveFileName(self,"Select an export location", "","Zip Files (*.zip)", options=options)
+        datasystem.data_zip(fileName[0]+'.zip')
 
     def show_graphLive(self):
         
         self.timeLive = list(range(100))  # 100 time points
         self.liveHR = [0]*100
         self.liveO2 = [0]*100
+        self.startTime =  datetime.datetime.now() - datetime.timedelta(seconds=self.notifCooldown)
+        print(self.startTime)
 
         pen = pg.mkPen(color = (255, 0 ,0), width = 2)
         pen2 = pg.mkPen(color = (0, 0 ,255), width = 2)
 
         self.liveDisplay_2.setText('0')
         self.liveDisplay_1.setText('0')
-
-
-
-
 
 
         if self.pushLive.isChecked():
@@ -245,50 +262,152 @@ class Ui_MainWindow(object):
             self.pushLive.setText('Stop')
         else:
             self.timer.stop()
+            self.graphWidgetLive.clear()
             self.pushLive.setText('Start')
 
+
+    def fromDate(self):
+        x = self.dateTimeEdit.date().toPyDate()
+        date = 'vitals'+ str(x)
+        directory = os.getcwd()
+        foldername = directory + '\\vitalsmouse_userdata'
+        self.importfile = foldername + '\\' + date +'.csv'
+
+        self.show_graphMain()
+
+    def fromFile(self):
+        
+        options = QFileDialog.Options() | QFileDialog.DontUseNativeDialog
+        fileName = QFileDialog.getOpenFileName(self,"Select a file to view", "","CSV Files (*.csv)", options=options)
+        self.importfile = fileName[0]
+        
+        self.show_graphMain()
+
     def show_graphMain(self):
+        
+        print(self.importfile)
+        
         self.graphWidgetMain.clear()
-        mainHR = [0]
-        mainO2 = [0]
-        mainTime = [0]
-        file = open('testing', 'r')
-        csv_reader = csv.reader(file, delimiter=',')
-        for row in csv_reader:
-            print(row[0])
-            mainTime.append(int(row[0]))
-            mainHR.append(int(row[1]))
-            mainO2.append(int(row[2]))
-        #mainTime = mainTime[1:]
-        #mainHR = mainHR[1:]
-        #mainO2 = mainO2[1:]
+        
+        maindata = datasystem.data_get(self.importfile)
+
+        mainTime = maindata[0]
+        mainHR = maindata[1]
+        mainO2 = maindata[2]
+
         pen = pg.mkPen(color = (255, 0 ,0), width = 2)
-        pen2 = pg.mkPen(color = (0, 255 ,0), width = 2)
+        pen2 = pg.mkPen(color = (0, 0 , 255), width = 2)
         self.graphWidgetMain.setBackground('w')
         self.graphWidgetMain.plot(mainTime, mainHR, pen=pen)
         self.graphWidgetMain.plot(mainTime, mainO2, pen=pen2)
 
 
-    def show_popExport(self):
     
-        msg = QMessageBox()
-        msg.setWindowTitle("Export")
-        msg.setText("Here you can export data as a file")
-        msg.setIcon(QMessageBox.Information)
-
-        self.liveDisplay_1.setText("22")
-        x = msg.exec()
-
-
     def show_popOptions(self):
-        msg = QMessageBox()
-        msg.setWindowTitle("Options")
-        msg.setText("Here you can set various options")
-        msg.setIcon(QMessageBox.Information)
+        self.Options = QDialog()
+        self.Options.resize(200,250)
+        
+        self.input_label = QtWidgets.QLabel(self.Options)
+        self.input_label.setGeometry(QtCore.QRect(10, 10, 61, 51))
+        self.input_label.setObjectName("input_label")
+        self.inputBox = QtWidgets.QComboBox(self.Options)
+        self.inputBox.setGeometry(QtCore.QRect(80, 30, 69, 22))
+        self.inputBox.setEditable(True)
+        self.inputBox.setObjectName("inputBox")
+        self.notificationsBox = QtWidgets.QGroupBox(self.Options)
+        self.notificationsBox.setGeometry(QtCore.QRect(0, 90, 211, 131))
+        self.notificationsBox.setObjectName("notificationsBox")
+        self.lineEdit = QtWidgets.QLineEdit(self.notificationsBox)
+        self.lineEdit.setGeometry(QtCore.QRect(130, 30, 61, 20))
+        self.lineEdit.setObjectName("lineEdit")
+        self.hr_label = QtWidgets.QLabel(self.notificationsBox)
+        self.hr_label.setGeometry(QtCore.QRect(6, 30, 111, 20))
+        self.hr_label.setObjectName("hr_label")
+        self.lineEdit_2 = QtWidgets.QLineEdit(self.notificationsBox)
+        self.lineEdit_2.setGeometry(QtCore.QRect(130, 60, 61, 20))
+        self.lineEdit_2.setObjectName("lineEdit_2")
+        self.lineEdit_3 = QtWidgets.QLineEdit(self.notificationsBox)
+        self.lineEdit_3.setGeometry(QtCore.QRect(130, 90, 61, 20))
+        self.lineEdit_3.setObjectName("lineEdit_3")
+        self.o2_label = QtWidgets.QLabel(self.notificationsBox)
+        self.o2_label.setGeometry(QtCore.QRect(10, 60, 111, 20))
+        self.o2_label.setObjectName("o2_label")
+        self.cooldown_label = QtWidgets.QLabel(self.notificationsBox)
+        self.cooldown_label.setGeometry(QtCore.QRect(10, 90, 111, 20))
+        self.cooldown_label.setObjectName("cooldown_label")
+
+        self.input_label.setText("Input mode")
+        self.inputBox.setCurrentText("Debug")
+        self.notificationsBox.setTitle(("Notifications"))
+        self.lineEdit.setText(("110"))
+        self.hr_label.setText(("Heartrate threshold"))
+        self.lineEdit_2.setText(("95"))
+        self.lineEdit_3.setText(("20"))
+        self.o2_label.setText(("Oxygen threshold"))
+        self.cooldown_label.setText(("Cooldown(seconds)"))
+
+        self.Options.setWindowTitle("Options")
+        self.Options.exec_()
+
+    def show_Analysis(self):
+        self.Analysis = QDialog()
+        self.Analysis.resize(400,400)
+       
+        self.dailyLine = QtWidgets.QLineEdit(self.Analysis)
+        self.dailyLine.setGeometry(QtCore.QRect(210, 60, 113, 20))
+        self.dailyLine.setReadOnly(True)
+        self.dailyLine.setObjectName("dailyLine")
+        self.yearly_label = QtWidgets.QLabel(self.Analysis)
+        self.yearly_label.setGeometry(QtCore.QRect(40, 140, 101, 16))
+        self.yearly_label.setObjectName("yearly_label")
+        self.monthly_label = QtWidgets.QLabel(self.Analysis)
+        self.monthly_label.setGeometry(QtCore.QRect(40, 100, 111, 16))
+        self.monthly_label.setObjectName("monthly_label")
+        self.monthlyLine = QtWidgets.QLineEdit(self.Analysis)
+        self.monthlyLine.setGeometry(QtCore.QRect(210, 100, 113, 20))
+        self.monthlyLine.setReadOnly(True)
+        self.monthlyLine.setObjectName("monthlyLine")
+        self.daily_label = QtWidgets.QLabel(self.Analysis)
+        self.daily_label.setGeometry(QtCore.QRect(40, 60, 111, 16))
+        self.daily_label.setObjectName("daily_label")
+        self.yearlyLine = QtWidgets.QLineEdit(self.Analysis)
+        self.yearlyLine.setGeometry(QtCore.QRect(210, 140, 113, 20))
+        self.yearlyLine.setReadOnly(True)
+        self.yearlyLine.setObjectName("yearlyLine")
+
+        self.dailyLine.setText('89')
+        self.monthlyLine.setText('85')
+        self.yearlyLine.setText('86')
+
+        self.graphWidgetAnalysis = PlotWidget(self.Analysis)
+        self.graphWidgetAnalysis.setGeometry(QtCore.QRect(50, 200, 300, 150))
+        self.graphWidgetAnalysis.setObjectName("graphWidgetLive")
+        self.graphWidgetAnalysis.setMouseEnabled(x=False, y=False)
+        self.graphWidgetAnalysis.setYRange(50, 150, padding=0)
+        self.graphWidgetAnalysis.getPlotItem().hideAxis('bottom')
+
+        pen = pg.mkPen(color = (255, 0 ,0), width = 2)
+        pen2 = pg.mkPen(color = (0, 0 ,255), width = 2)
+        time = [1,2,3,4]
+        heartRate = [90,87,88,85]
+        oxygenLevel = [100,99,99,98]
+        self.graphWidgetAnalysis.setBackground('w')
+        self.graphWidgetAnalysis.plot(time, heartRate, pen=pen)
+        self.graphWidgetAnalysis.plot(time, oxygenLevel, pen=pen2)
+
+
+        self.yearly_label.setText("Yearly Average")
+        self.monthly_label.setText("Monthly Average")
+        self.daily_label.setText("Daily Average")
+        
+        self.Analysis.setWindowTitle("Analysis")
+    
+        self.Analysis.exec_()
+
 
         
 
-        x = msg.exec()
+       
 
 
     def retranslateUi(self, MainWindow):
@@ -299,27 +418,22 @@ class Ui_MainWindow(object):
         self.pushExport.setText(_translate("MainWindow", "Export"))
         self.pushOptions.setText(_translate("MainWindow", "Options"))
         self.pushLive.setText(_translate("MainWindow","Start"))
-        self.pushGraph.setText(_translate("MainWindow","Load Graph"))
+        self.pushGraph.setText(_translate("MainWindow","From file"))
+        self.pushGraph2.setText(_translate("MainWindow","From date"))
         self.liveDisplay_1.setText("##")
         self.liveDisplay_2.setText("##")
         self.groupBox.setTitle(_translate("MainWindow", "History"))
-        self.label_3.setText(_translate("MainWindow", "Graph goes here"))
-        self.label_4.setText(_translate("MainWindow", "Heart Rate"))
-        self.label_5.setText(_translate("MainWindow", "O2"))
-        self.label_6.setText(_translate("MainWindow", "Live graph here"))
-        self.textBrowser_3.setHtml(_translate("MainWindow", "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\" \"http://www.w3.org/TR/REC-html40/strict.dtd\">\n"
-"<html><head><meta name=\"qrichtext\" content=\"1\" /><style type=\"text/css\">\n"
-"p, li { white-space: pre-wrap; }\n"
-"</style></head><body style=\" font-family:\'MS Shell Dlg 2\'; font-size:8.25pt; font-weight:400; font-style:normal;\">\n"
-"<p style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-size:16pt;\">##</span></p></body></html>"))
-        self.textBrowser_4.setHtml(_translate("MainWindow", "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\" \"http://www.w3.org/TR/REC-html40/strict.dtd\">\n"
-"<html><head><meta name=\"qrichtext\" content=\"1\" /><style type=\"text/css\">\n"
-"p, li { white-space: pre-wrap; }\n"
-"</style></head><body style=\" font-family:\'MS Shell Dlg 2\'; font-size:8.25pt; font-weight:400; font-style:normal;\">\n"
-"<p style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-size:16pt;\">##</span></p></body></html>"))
 
 
-    
+        
+
+
+class Second(QtGui.QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle('Options')
+        self.setFixedSize(400,350)
+        
 
 
 
