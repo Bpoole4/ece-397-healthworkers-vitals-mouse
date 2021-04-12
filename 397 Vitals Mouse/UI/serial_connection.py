@@ -1,3 +1,5 @@
+#this file is used for connecting with the serial port and reading from it
+#by default the lines to do this are commented out because it will cause errors if the device is not set up on your computer
 import serial
 import time
 
